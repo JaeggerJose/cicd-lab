@@ -1,0 +1,85 @@
+name: CI 314551022
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  quality-gate:
+    name: Quality Gate (typecheck / prettier / test)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript typecheck
+        id: typecheck
+        run: npm run typecheck
+
+      - name: Prettier format check
+        id: prettier
+        run: npm run format:check
+
+      - name: Run tests (vitest + JUnit reporter)
+        id: test
+        run: npm test
+        env:
+          CI: 'true'
+
+      - name: Publish test report (dorny/test-reporter)
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Vitest Results
+          path: reports/junit.xml
+          reporter: jest-junit
+          fail-on-error: false
+
+      - name: Upload JUnit XML artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-report
+          path: reports/junit.xml
+          if-no-files-found: warn
+
+      - name: Write Job Summary
+        if: always()
+        env:
+          TYPECHECK_OUTCOME: ${{ steps.typecheck.outcome }}
+          PRETTIER_OUTCOME: ${{ steps.prettier.outcome }}
+          TEST_OUTCOME: ${{ steps.test.outcome }}
+          COMMIT_SHA: ${{ github.sha }}
+          REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          {
+            echo "## CI Summary - 314551022 廖洺玄"
+            echo ""
+            echo "| Stage | Status |"
+            echo "|-------|--------|"
+            echo "| TypeScript typecheck | ${TYPECHECK_OUTCOME} |"
+            echo "| Prettier format check | ${PRETTIER_OUTCOME} |"
+            echo "| Vitest tests | ${TEST_OUTCOME} |"
+            echo ""
+            echo "Commit: \`${COMMIT_SHA}\` on \`${REF_NAME}\`"
+            echo "Triggered by: \`${EVENT_NAME}\` from \`${ACTOR}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,7 +1,10 @@
 import { buildApp } from './app';
 
 const app = buildApp({ logger: true });
-const port = Number(process.env.PORT || 3000);
+// Intentional type error for CI homework failure demo:
+// process.env.PORT is string | undefined; `|| 3000` widens to string | number,
+// which cannot be assigned to `number` without an explicit conversion.
+const port: number = process.env.PORT || 3000;
 const host = process.env.HOST || '0.0.0.0';
 
 async function start() {
